@@ -14,6 +14,7 @@ except Exception:
     hf_hub_download = None
 import requests
 
+CKPT_DIR = os.environ.get("SD_CKPT_DIR", os.path.join(os.getcwd(), "models", "checkpoints"))
 CACHE_DIR = os.environ.get("HUGGINGFACE_HUB_CACHE") or os.environ.get("HF_HOME") or None
 DEFAULT_MODEL_ID = os.environ.get("SD15_MODEL_ID", "runwayml/stable-diffusion-v1-5")
 DEFAULT_VAE_ID = os.environ.get("SD15_VAE_ID", "stabilityai/sd-vae-ft-ema")
@@ -30,6 +31,7 @@ class ModelManager:
         self._loaded_lora_adapters = set()
         self._custom_vae_file: Optional[str] = None
         self._upscaler_file: Optional[str] = None
+        self._custom_ckpt_file: Optional[str] = None
 
     @staticmethod
     def get_hf_token() -> Optional[str]:
@@ -46,15 +48,25 @@ class ModelManager:
             save_config(cfg)
 
     def _load_base_pipe(self, token: Optional[str]):
-        pipe = StableDiffusionPipeline.from_pretrained(
-            self.model_id,
-            torch_dtype=self.dtype,
-            use_safetensors=True,
-            token=token,
-            cache_dir=CACHE_DIR,
-            safety_checker=None if DISABLE_SAFETY else None,
-            feature_extractor=None if DISABLE_SAFETY else None,
-        )
+        if self._custom_ckpt_file and os.path.exists(self._custom_ckpt_file):
+            pipe = StableDiffusionPipeline.from_single_file(
+                self._custom_ckpt_file,
+                torch_dtype=self.dtype,
+                use_safetensors=True,
+                safety_checker=None if DISABLE_SAFETY else None,
+                feature_extractor=None if DISABLE_SAFETY else None,
+            )
+        else:
+            pipe = StableDiffusionPipeline.from_pretrained(
+                self.model_id,
+                torch_dtype=self.dtype,
+                use_safetensors=True,
+                token=token,
+                cache_dir=CACHE_DIR,
+                safety_checker=None if DISABLE_SAFETY else None,
+                feature_extractor=None if DISABLE_SAFETY else None,
+            )
+
         if self._custom_vae_file and os.path.exists(self._custom_vae_file):
             try:
                 vae = AutoencoderKL.from_single_file(self._custom_vae_file, torch_dtype=self.dtype)
@@ -73,15 +85,24 @@ class ModelManager:
         return pipe
 
     def _load_img2img_pipe(self, token: Optional[str]):
-        pipe = StableDiffusionImg2ImgPipeline.from_pretrained(
-            self.model_id,
-            torch_dtype=self.dtype,
-            use_safetensors=True,
-            token=token,
-            cache_dir=CACHE_DIR,
-            safety_checker=None if DISABLE_SAFETY else None,
-            feature_extractor=None if DISABLE_SAFETY else None,
-        )
+        if self._custom_ckpt_file and os.path.exists(self._custom_ckpt_file):
+            pipe = StableDiffusionImg2ImgPipeline.from_single_file(
+                self._custom_ckpt_file,
+                torch_dtype=self.dtype,
+                use_safetensors=True,
+                safety_checker=None if DISABLE_SAFETY else None,
+                feature_extractor=None if DISABLE_SAFETY else None,
+            )
+        else:
+            pipe = StableDiffusionImg2ImgPipeline.from_pretrained(
+                self.model_id,
+                torch_dtype=self.dtype,
+                use_safetensors=True,
+                token=token,
+                cache_dir=CACHE_DIR,
+                safety_checker=None if DISABLE_SAFETY else None,
+                feature_extractor=None if DISABLE_SAFETY else None,
+            )
         if self._custom_vae_file and os.path.exists(self._custom_vae_file):
             try:
                 vae = AutoencoderKL.from_single_file(self._custom_vae_file, torch_dtype=self.dtype)
@@ -102,6 +123,7 @@ class ModelManager:
     def ensure_loaded(self) -> Tuple[StableDiffusionPipeline, StableDiffusionImg2ImgPipeline]:
         token = self.get_hf_token()
         self._ensure_optional_assets(token)
+        self._load_custom_ckpt_from_cfg()
         if self.pipe_txt2img is None:
             self.pipe_txt2img = self._load_base_pipe(token)
         if self.pipe_img2img is None:
@@ -118,7 +140,6 @@ class ModelManager:
             target_dir = Path(os.environ.get("SD_ASSETS_DIR", os.path.join(outputs_base_dir(), "assets")))
             target_dir.mkdir(parents=True, exist_ok=True)
 
-            # Try HF cached download first
             def get_from_hf(filename: str) -> Optional[str]:
                 if hf_hub_download is None:
                     return None
@@ -152,6 +173,35 @@ class ModelManager:
                 print(f"[Assets] Upscaler available: {up_path}")
         except Exception:
             pass
+
+    def _load_custom_ckpt_from_cfg(self):
+        if self._custom_ckpt_file:
+            return
+        path = os.environ.get("SD_CUSTOM_CKPT_PATH")
+        if not path:
+            cfg = load_config()
+            path = cfg.get("custom_ckpt")
+        if path and os.path.exists(path):
+            self._custom_ckpt_file = path
+
+    def set_custom_checkpoint(self, path: str, persist: bool = True):
+        if not path or not os.path.exists(path):
+            raise FileNotFoundError(f"Checkpoint not found: {path}")
+        self._custom_ckpt_file = path
+        if persist:
+            cfg = load_config()
+            cfg["custom_ckpt"] = path
+            save_config(cfg)
+        self.unload()
+
+    def clear_custom_checkpoint(self, persist: bool = True):
+        self._custom_ckpt_file = None
+        if persist:
+            cfg = load_config()
+            if "custom_ckpt" in cfg:
+                cfg.pop("custom_ckpt", None)
+                save_config(cfg)
+        self.unload()
 
     def unload(self):
         for attr in ("pipe_txt2img", "pipe_img2img"):

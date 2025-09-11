@@ -450,7 +450,7 @@ def build_ui():
 
                 with gr.Row():
                     gen_btn = gr.Button("Generate", variant="primary")
-                    cancel_btn = gr.Button("Cancel")
+                    cancel_btn = gr.Button("Cancel", variant="stop")
 
             with gr.Column(scale=1):
                 gallery = gr.Gallery(label="Results", columns=2, height=600)

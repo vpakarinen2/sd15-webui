@@ -353,7 +353,7 @@ def cancel_generation():
 
 def build_ui():
     with gr.Blocks(theme=gr.themes.Default(), css=".btn-full button{width:100%; margin:8px 6px;}") as grsd:
-        gr.Markdown("# Stable Diffusion 1.5 - Txt2Img")
+        gr.Markdown("# SD 1.5 - T2I")
 
         with gr.Accordion("Setup & Models", open=False):
             token_box = gr.Textbox(label="Hugging Face Token", type="password", placeholder="hf_...")

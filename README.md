@@ -1,4 +1,4 @@
-# SD 1.5 T2I
+# SD 1.5 T2I WebUI
 
 ## Usage
 1. Run Jupyter notebook file

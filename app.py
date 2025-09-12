@@ -1,16 +1,17 @@
 import gradio as gr
-import time
-import os
-import shutil
 import requests
+import shutil
+import time
+import re
+import os
 
+from urllib.parse import urlparse, unquote
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-from urllib.parse import urlparse
 
+from core.lora import scan_loras, default_lora_dir, adapter_name_from_filename
 from core.generation import generate_txt2img, CancelToken
 from core.persistence import save_images_with_metadata
-from core.lora import scan_loras, default_lora_dir, adapter_name_from_filename
 from core.schedulers import available_samplers
 from core.model_manager import ModelManager
 
@@ -135,16 +136,33 @@ def _guess_filename_from_url(url: str) -> str:
     return "model.safetensors"
 
 
+def _sanitize_filename(name: str) -> str:
+    try:
+        name = unquote(name)
+    except Exception:
+        pass
+    name = os.path.basename(name)
+    name = name.strip().strip('"').strip("'")
+    name = name.rstrip('; .')
+    name = re.sub(r"[\\/:*?\"<>|\x00-\x1F]+", "_", name)
+    if not name:
+        name = "model.safetensors"
+    return name
+
+
 def _filename_from_response(resp, fallback: str) -> str:
     try:
         cd = resp.headers.get("content-disposition") or resp.headers.get("Content-Disposition")
-        if cd and "filename=" in cd:
-            fname = cd.split("filename=")[-1].strip().strip('"')
-            if fname:
-                return fname
+        if cd:
+            m = re.search(r"filename\*\s*=\s*(?:UTF-8''|utf-8''|'')?([^;]+)", cd, flags=re.IGNORECASE)
+            if m:
+                return _sanitize_filename(m.group(1).strip().strip('"'))
+            m2 = re.search(r"filename\s*=\s*([^;]+)", cd, flags=re.IGNORECASE)
+            if m2:
+                return _sanitize_filename(m2.group(1).strip().strip('"'))
     except Exception:
         pass
-    return fallback
+    return _sanitize_filename(fallback)
 
 
 def _requests_session() -> requests.Session:

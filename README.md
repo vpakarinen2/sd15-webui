@@ -1,8 +1,9 @@
-# SD 1.5 T2I WebUI
+# SD 1.5 WebUI (T2I)
 
 ## Usage
+1. Clone the repository
 1. Run Jupyter notebook file
-2. Open WebUI link
+2. Open the WebUI link
 
 ## Screenshots
 

@@ -464,7 +464,7 @@ def build_ui():
                     with gr.Row():
                         hires_scale = gr.Slider(1.2, 2.0, value=1.5, step=0.05, label="Hi-Res Scale")
                         hires_steps = gr.Slider(1, 60, value=15, step=1, label="Hi-Res Steps")
-                    hires_denoise = gr.Slider(0.05, 1.0, value=0.25, step=0.01, label="Hi-Res Denoise Strength")
+                        hires_denoise = gr.Slider(0.05, 1.0, value=0.25, step=0.01, label="Hi-Res Denoise Strength")
 
                 with gr.Row():
                     gen_btn = gr.Button("Generate", variant="primary")
